@@ -228,19 +228,20 @@ module ActiveRecord
         def sp_executesql(sql, name, binds, options = {})
           options[:ar_result] = true if options[:fetch] != :rows
           unless without_prepared_statement?(binds)
-            types, params = sp_executesql_types_and_parameters(binds)
-            sql = sp_executesql_sql(sql, types, params, name)
+            types, params, hash_params = sp_executesql_types_and_parameters(binds)
+            sql = sp_executesql_sql(sql, types, params, name, hash_params)
           end
           raw_select sql, name, binds, options
         end
 
         def sp_executesql_types_and_parameters(binds)
-          types, params = [], []
+          types, params, hash_params = [], [], []
           binds.each_with_index do |attr, index|
             types << "@#{index} #{sp_executesql_sql_type(attr)}"
             params << sp_executesql_sql_param(attr)
+            hash_params << Hash[attr.name, attr.value_before_type_cast]
           end
-          [types, params]
+          [types, params, hash_params.inject(:merge)]
         end
 
         def sp_executesql_sql_type(attr)
@@ -263,15 +264,29 @@ module ActiveRecord
           end
         end
 
-        def sp_executesql_sql(sql, types, params, name)
+        def sp_executesql_sql(sql, types, params, name, hash_params = {})
           if name == 'EXPLAIN'
             params.each.with_index do |param, index|
               substitute_at_finder = /(@#{index})(?=(?:[^']|'[^']*')*$)/ # Finds unquoted @n values.
               sql = sql.sub substitute_at_finder, param.to_s
             end
           else
+            # INFO: checks if sql contains expression like id = :id
+            if /([a-zA-Z_]+\s*=\s*:[a-zA-Z_]+)+/.match?(sql)
+              substring_elements, params = {}, []
+
+              hash_params.each.with_index do |(key, value), index|
+                substring_elements[":#{key}"] = "@#{index}"
+                params << "@#{index} = #{value}"
+              end
+
+              params = params.join(', ')
+              sql = sql.gsub(/(:[a-zA-Z_]+)+/, substring_elements)
+            else
+              params = params.map.with_index{ |p, i| "@#{i} = #{p}" }.join(', ') # Only p is needed, but with @i helps explain regexp.
+            end
+
             types = quote(types.join(', '))
-            params = params.map.with_index{ |p, i| "@#{i} = #{p}" }.join(', ') # Only p is needed, but with @i helps explain regexp.
             sql = "EXEC sp_executesql #{quote(sql)}"
             sql << ", #{types}, #{params}" unless params.empty?
           end
