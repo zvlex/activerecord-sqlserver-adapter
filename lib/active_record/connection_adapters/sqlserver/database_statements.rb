@@ -272,7 +272,7 @@ module ActiveRecord
             end
           else
             # INFO: checks if sql contains expression like id = :id
-            if /([a-zA-Z_]+\s*=\s*:[a-zA-Z_]+)+/.match?(sql)
+            if /([a-zA-Z_]+\s*(=|!=|<>|<|>|<=|>=)\s*:[a-zA-Z_]+)+/.match?(sql)
               substring_elements, params = {}, []
 
               hash_params.each.with_index do |(key, value), index|
