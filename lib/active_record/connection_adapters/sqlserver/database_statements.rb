@@ -271,9 +271,12 @@ module ActiveRecord
               sql = sql.sub substitute_at_finder, param.to_s
             end
           else
-            # INFO: checks if sql contains expression like id =/!=/<>/</>/<=/>=/LIKE/like :id
-            if /([a-zA-Z_]+\s*(=|!=|<>|<|>|<=|>=|LIKE|like)\s*:[a-zA-Z_]+)+/.match?(sql)
-              substring_elements, params = {}, []
+            # INFO: checks if sql contains expressions
+            # id =/!=/<>/</>/<=/>=/LIKE/like :id
+            # /(?:(convert\(char\(34\),\s*+\w+,\s*+1\s*\)|\w+\s*+[=|!=|<>|<|>|<=|>=|like]\s*+:\w+))+/i.match?(sql)
+
+            if /:\w+/i.match?(sql)
+              substring_elements, params = Hash.new('NULL'), []
 
               hash_params.each.with_index do |(key, value), index|
                 substring_elements[":#{key}"] = "@#{index}"
