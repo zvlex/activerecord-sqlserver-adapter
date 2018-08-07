@@ -271,8 +271,8 @@ module ActiveRecord
               sql = sql.sub substitute_at_finder, param.to_s
             end
           else
-            # INFO: checks if sql contains expression like id = :id
-            if /([a-zA-Z_]+\s*(=|!=|<>|<|>|<=|>=)\s*:[a-zA-Z_]+)+/.match?(sql)
+            # INFO: checks if sql contains expression like id =/!=/<>/</>/<=/>=/LIKE/like :id
+            if /([a-zA-Z_]+\s*(=|!=|<>|<|>|<=|>=|LIKE|like)\s*:[a-zA-Z_]+)+/.match?(sql)
               substring_elements, params = {}, []
 
               hash_params.each.with_index do |(key, value), index|
@@ -281,6 +281,10 @@ module ActiveRecord
               end
 
               params = params.join(', ')
+
+              # INFO: For pagination
+              sql = sql.sub(/OFFSET\s(@\d)/, "OFFSET :OFFSET")
+              sql = sql.sub(/(NEXT\s@\d)/, "NEXT :LIMIT")
               sql = sql.gsub(/(:[a-zA-Z_]+)+/, substring_elements)
             else
               params = params.map.with_index{ |p, i| "@#{i} = #{p}" }.join(', ') # Only p is needed, but with @i helps explain regexp.
