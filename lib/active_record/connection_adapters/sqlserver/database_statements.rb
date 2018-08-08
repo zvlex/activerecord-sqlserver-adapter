@@ -273,16 +273,25 @@ module ActiveRecord
           else
             # INFO: checks if sql contains expressions
             # id =/!=/<>/</>/<=/>=/LIKE/like :id
-            # /(?:(convert\(char\(34\),\s*+\w+,\s*+1\s*\)|\w+\s*+[=|!=|<>|<|>|<=|>=|like]\s*+:\w+))+/i.match?(sql)
-
+            # /(?:(convert\(char\(34\),\s*+[\w\D]+,\s*+1\s*\)|\w+\s*+[=|!=|<>|<|>|<=|>=|like]\s*+:\w+))+/i.match?(sql)
             if /:\w+/i.match?(sql)
               substring_elements, params = Hash.new('NULL'), []
 
               hash_params.each.with_index do |(key, value), index|
                 substring_elements[":#{key}"] = "@#{index}"
+
+                value =
+                  case value
+                  when FalseClass, TrueClass, Integer
+                    value
+                  when Date, Time, DateTime
+                    "'#{ value.to_s(:db) }'"
+                  else
+                    "'#{ value }'"
+                  end
+
                 params << "@#{index} = #{value}"
               end
-
               params = params.join(', ')
 
               # INFO: For pagination
