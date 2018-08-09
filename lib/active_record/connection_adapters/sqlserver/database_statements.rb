@@ -225,6 +225,7 @@ module ActiveRecord
           log(sql, name) { raw_connection_do(sql) }
         end
 
+        # EVXBL-7849
         def sp_executesql(sql, name, binds, options = {})
           options[:ar_result] = true if options[:fetch] != :rows
           unless without_prepared_statement?(binds)
@@ -234,12 +235,14 @@ module ActiveRecord
           raw_select sql, name, binds, options
         end
 
+        # EVXBL-7849
         def sp_executesql_types_and_parameters(binds)
           types, params, hash_params = [], [], []
 
-          count, start_index = 0, 100
+          count, start_index = 0, 1_000
 
           binds.each_with_index do |attr, index|
+            # TODO: generates index out of order
             if attr.is_custom_method
               new_index = index + start_index
               count += 1
@@ -281,6 +284,7 @@ module ActiveRecord
           end
         end
 
+        # EVXBL-7849
         def sp_executesql_sql(sql, types, params, name, hash_params = [])
           if name == 'EXPLAIN'
             params.each.with_index do |param, index|
@@ -294,12 +298,12 @@ module ActiveRecord
             if /:\w+/i.match?(sql)
               substring_elements, params = Hash.new('NULL'), []
 
-              hash_params.each.with_index do |hash_element|
+              hash_params.each do |hash_element|
                 key   = hash_element[:name]
                 value = hash_element[:value]
                 index = hash_element[:index]
 
-                substring_elements[":#{key}"] = "@#{index}"
+                substring_elements[":#{key}"] = "@#{index}" if hash_element[:is_custom_method]
 
                 value =
                   case value
@@ -317,10 +321,6 @@ module ActiveRecord
               end
 
               params = params.join(', ')
-
-              # INFO: For pagination
-              sql = sql.sub(/OFFSET\s(@\d)/, "OFFSET :OFFSET")
-              sql = sql.sub(/(NEXT\s@\d)/, "NEXT :LIMIT")
 
               sql = sql.gsub(/(:[a-zA-Z_]+)+/, substring_elements)
             else
