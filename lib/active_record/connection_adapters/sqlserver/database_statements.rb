@@ -236,12 +236,29 @@ module ActiveRecord
 
         def sp_executesql_types_and_parameters(binds)
           types, params, hash_params = [], [], []
+
+          count, start_index = 0, 100
+
           binds.each_with_index do |attr, index|
-            types << "@#{index} #{sp_executesql_sql_type(attr)}"
+            if attr.is_custom_method
+              new_index = index + start_index
+              count += 1
+            else
+              new_index = index - count
+            end
+
+            types << "@#{new_index} #{sp_executesql_sql_type(attr)}"
             params << sp_executesql_sql_param(attr)
-            hash_params << Hash[attr.name, attr.value_before_type_cast]
+
+            hash_params << {
+              name: attr.name,
+              value: attr.value_before_type_cast,
+              is_custom_method: attr.is_custom_method,
+              index: new_index
+            }
           end
-          [types, params, hash_params.inject(:merge)]
+
+          [types, params, hash_params]
         end
 
         def sp_executesql_sql_type(attr)
@@ -264,7 +281,7 @@ module ActiveRecord
           end
         end
 
-        def sp_executesql_sql(sql, types, params, name, hash_params = {})
+        def sp_executesql_sql(sql, types, params, name, hash_params = [])
           if name == 'EXPLAIN'
             params.each.with_index do |param, index|
               substitute_at_finder = /(@#{index})(?=(?:[^']|'[^']*')*$)/ # Finds unquoted @n values.
@@ -277,12 +294,18 @@ module ActiveRecord
             if /:\w+/i.match?(sql)
               substring_elements, params = Hash.new('NULL'), []
 
-              hash_params.each.with_index do |(key, value), index|
+              hash_params.each.with_index do |hash_element|
+                key   = hash_element[:name]
+                value = hash_element[:value]
+                index = hash_element[:index]
+
                 substring_elements[":#{key}"] = "@#{index}"
 
                 value =
                   case value
-                  when FalseClass, TrueClass, Integer
+                  when FalseClass, TrueClass
+                    value ? 1 : 0
+                  when Integer
                     value
                   when Date, Time, DateTime
                     "'#{ value.to_s(:db) }'"
@@ -292,11 +315,13 @@ module ActiveRecord
 
                 params << "@#{index} = #{value}"
               end
+
               params = params.join(', ')
 
               # INFO: For pagination
               sql = sql.sub(/OFFSET\s(@\d)/, "OFFSET :OFFSET")
               sql = sql.sub(/(NEXT\s@\d)/, "NEXT :LIMIT")
+
               sql = sql.gsub(/(:[a-zA-Z_]+)+/, substring_elements)
             else
               params = params.map.with_index{ |p, i| "@#{i} = #{p}" }.join(', ') # Only p is needed, but with @i helps explain regexp.
