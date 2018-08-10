@@ -322,7 +322,7 @@ module ActiveRecord
 
               params = params.join(', ')
 
-              sql = sql.gsub(/(:[a-zA-Z_]+)+/, substring_elements)
+              sql = sql.gsub(/(:\w+)+/, substring_elements)
             else
               params = params.map.with_index{ |p, i| "@#{i} = #{p}" }.join(', ') # Only p is needed, but with @i helps explain regexp.
             end
