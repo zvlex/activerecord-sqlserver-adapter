@@ -314,7 +314,7 @@ module ActiveRecord
                   when Date, Time, DateTime
                     "'#{ value.to_s(:db) }'"
                   else
-                    "'#{ value }'"
+                    "N'#{ value }'"
                   end
 
                 params << "@#{index} = #{value}"
