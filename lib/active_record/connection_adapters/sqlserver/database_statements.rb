@@ -269,6 +269,8 @@ module ActiveRecord
           case value = attr.value_for_database
           when Numeric
             value > 2_147_483_647 ? 'bigint'.freeze : 'int'.freeze
+          when TrueClass, FalseClass
+            'bit'.freeze
           else
             'nvarchar(max)'.freeze
           end
