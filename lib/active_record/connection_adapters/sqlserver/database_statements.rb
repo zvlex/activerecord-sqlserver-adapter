@@ -324,7 +324,11 @@ module ActiveRecord
 
               params = params.join(', ')
 
-              sql = sql.gsub(Regexp.union(substring_elements.keys), substring_elements) unless substring_elements.empty?
+              unless substring_elements.empty?
+                substring_elements.each do |key, value|
+                  sql = sql.gsub(/#{key}\b/, value)
+                end
+              end
             else
               params = params.map.with_index{ |p, i| "@#{i} = #{p}" }.join(', ') # Only p is needed, but with @i helps explain regexp.
             end
