@@ -313,8 +313,10 @@ module ActiveRecord
                     value ? 1 : 0
                   when Integer
                     value
-                  when Date, Time, DateTime
+                  when Date
                     "'#{ value.to_s(:db) }'"
+                  when Time, DateTime
+                    "'#{ value.to_s(:db_usec) }'"
                   else
                     quote(value)
                   end
