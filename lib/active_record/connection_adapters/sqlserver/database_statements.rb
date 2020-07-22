@@ -242,12 +242,11 @@ module ActiveRecord
           count, start_index = 0, 1_000
 
           binds.each_with_index do |attr, index|
-            # TODO: generates index out of order
             if attr.is_custom_method
               new_index = index + start_index
-              count += 1
             else
-              new_index = index - count
+              new_index = count
+              count += 1
             end
 
             types << "@#{new_index} #{sp_executesql_sql_type(attr)}"
